@@ -1,0 +1,22 @@
+# salidas y caches
+outputs/
+cache/
+__pycache__/
+*.pyc
+
+# entornos
+.env
+.venv/
+*.env
+
+# editor
+.vscode/
+.idea/
+
+# mac/linux
+.DS_Store
+outputs/
+cache/
+__pycache__/
+*.pyc
+.env

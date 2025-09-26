@@ -1,14 +1,24 @@
-# Dockerfile (CPU only)
-FROM python:3.11-slim
+# Usar una imagen base de Python específica para mayor reproducibilidad
+FROM python:3.11-slim-bookworm
 
-# ffmpeg para leer m4a/mp3/wav/mp4
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+# Etiqueta para identificar al mantenedor
+LABEL maintainer="Ithan"
 
-# Librerías necesarias
-RUN pip install --no-cache-dir faster-whisper==1.0.3 rich==13.7.1
+# Instalar ffmpeg y sus dependencias desde los repositorios de Debian
+# --no-install-recommends evita instalar paquetes innecesarios
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ffmpeg && \
+    # Limpiar la caché de apt para mantener la imagen ligera
+    rm -rf /var/lib/apt/lists/*
 
+# Establecer el directorio de trabajo dentro del contenedor
 WORKDIR /app
-COPY transcribe.py /app/transcribe.py
 
-ENTRYPOINT ["python", "/app/transcribe.py"]
+# Copiar el archivo de requerimientos e instalar las dependencias de Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    -r requirements.txt
+
+# Copiar el resto de la aplicación al directorio de trabajo
+COPY . .

@@ -1,13 +1,21 @@
 #version: "3.9"
 
 services:
-  fwcpu:
+  audio2text:
     build: .
-    container_name: fwcpu
+    container_name: audio2text
     volumes:
       - ./audios:/app/audios
       - ./outputs:/app/outputs
       - ./cache/ctranslate2:/root/.cache/ctranslate2
       - ./cache/huggingface:/root/.cache/huggingface
     working_dir: /app
-    command: ["audios/01-09-2025 14.12.m4a", "-o", "outputs", "--language", "es", "-m", "small", "--compute-type", "int8", "--beam-size", "1", "--vad"]
+    command: [
+        "python3", "transcribe.py",
+        "-o", "outputs",
+        "--language", "es",
+        "-m", "small",
+        "--compute-type", "int8",
+        "--beam-size", "5",
+        "--vad"
+      ]

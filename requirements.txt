@@ -1,3 +1,4 @@
 faster-whisper
 transformers[sentencepiece]
+sacremoses
 torch

@@ -51,12 +51,11 @@
 - `outputs/`: resultados de la transcripción  
 - `cache/huggingface/hub/`: caché de modelos  
 
-## Ejemplo de Comando
+## Ejemplo de Comando y de Ejecución Ingles (en) a Español (es)
 ```bash
-docker compose run --rm fwcpu "audios/audio1.m4a" -o outputs -m small --vad
+docker compose run --rm audio2text "audios/audio1.m4a" -l en --translate-to es -m small --vad
 ```
-
-## Ejemplo Taller
+## Ejemplo de Comando y de Ejecución Alemán (de) a Francés (fr)
 ```bash
-docker compose run --rm audio2text "audios/audio2.m4a" -l de --translate-to es
+docker compose run --rm audio2text "audios/audio1.m4a" -l de --translate-to fr -m small --vad
 ```

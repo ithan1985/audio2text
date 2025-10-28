@@ -10,12 +10,8 @@ services:
       - ./cache/ctranslate2:/root/.cache/ctranslate2
       - ./cache/huggingface:/root/.cache/huggingface
     working_dir: /app
-    command: [
+    # Define el programa principal que se ejecutará siempre.
+    # Los argumentos se pasarán desde el comando 'docker compose run'.
+    entrypoint: [
         "python3", "transcribe.py",
-        "-o", "outputs",
-        "--language", "es",
-        "-m", "small",
-        "--compute-type", "int8",
-        "--beam-size", "5",
-        "--vad"
-      ]
+    ]

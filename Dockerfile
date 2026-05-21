@@ -16,6 +16,14 @@ WORKDIR /app
 
 # Copiar el archivo de requerimientos e instalar las dependencias de Python
 COPY requirements.txt .
+
+# Instalar torch CPU-only explícitamente antes del resto de dependencias
+# Esto evita que pip descargue automáticamente las variantes con CUDA/NVIDIA
+RUN pip install --no-cache-dir \
+    torch \
+    torchaudio \
+    --index-url https://download.pytorch.org/whl/cpu
+
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar el resto de la aplicación al directorio de trabajo

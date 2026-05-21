@@ -3,6 +3,7 @@
 services:
   audio2text:
     build: .
+    platform: linux/amd64
     container_name: audio2text
     volumes:
       - ./audios:/app/audios

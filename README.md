@@ -219,11 +219,16 @@ docker compose run --rm audio2text "audios/mi_audio.mp3" -l es --translate-to en
 | `--translate-to` | Idioma al que traducir | `--translate-to en` |
 | `-m` | Tamaño del modelo (precisión vs. velocidad) | `-m small` |
 | `--vad` | Mejora la segmentación en audios con ruido | `--vad` |
+| `--start` | Segundo de inicio del recorte | `--start 60` (desde el minuto 1) |
+| `--duration` | Duración en segundos a procesar | `--duration 30` (solo 30 segundos) |
 
 **Modelos disponibles** (de más rápido a más preciso):
 `tiny` → `base` → `small` → `medium` → `large-v3`
 
 Para la mayoría de usos académicos, `small` ofrece un buen balance.
+
+**Idiomas soportados para traducción:**
+`es` (español), `en` (inglés), `fr` (francés), `de` (alemán), `it` (italiano), `pt` (portugués), `zh` (chino), `ja` (japonés), `ko` (coreano), `ru` (ruso), `ar` (árabe)
 
 ---
 
@@ -262,6 +267,16 @@ docker compose run --rm audio2text "audios/entrevista.mp3" -l en -m small --vad
 docker compose run --rm audio2text "audios/grabacion.m4a" -l "" -m small --vad
 ```
 
+**Procesar solo los primeros 30 segundos (útil para pruebas):**
+```bash
+docker compose run --rm audio2text "audios/historia.mp3" -l en --duration 30 --translate-to es -m small
+```
+
+**Procesar desde el minuto 1 durante 30 segundos:**
+```bash
+docker compose run --rm audio2text "audios/historia.mp3" -l en --start 60 --duration 30 --translate-to es -m small
+```
+
 ---
 
 ## Solución de problemas frecuentes
@@ -287,8 +302,8 @@ docker compose run --rm audio2text "audios/grabacion.m4a" -l "" -m small --vad
 - **Asignatura:** Gestión del Conocimiento y Transferencia Tecnológica
 - **Institución:** Universidad Militar Nueva Granada
 - **Motor de transcripción:** [faster-whisper](https://github.com/Systran/faster-whisper)
-- **Traducción:** [Helsinki-NLP](https://huggingface.co/Helsinki-NLP) vía Hugging Face
-- **Procesamiento:** 100% local, sin internet durante la transcripción
+- **Traducción:** [NLLB-200](https://huggingface.co/facebook/nllb-200-distilled-600M) de Meta AI vía ctranslate2 (offline, sin torch)
+- **Procesamiento:** 100% local, sin internet durante la transcripción y traducción
 
 ---
 

@@ -12,10 +12,12 @@ import tempfile
 from faster_whisper import WhisperModel
 
 try:
-    from transformers import pipeline
-    TRANSFORMERS_AVAILABLE = True
+    from ctranslate2 import Translator as CT2Translator
+    from huggingface_hub import snapshot_download
+    import sentencepiece as spm
+    NLLB_AVAILABLE = True
 except ImportError:
-    TRANSFORMERS_AVAILABLE = False
+    NLLB_AVAILABLE = False
 
 
 def ts(seconds: float) -> str:
@@ -28,7 +30,7 @@ def ts(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
-def preconvert_to_wav(src: Path) -> Path:
+def preconvert_to_wav(src: Path, start: float = 0.0, duration: float = None) -> Path:
     """Convierte cualquier audio/video a WAV mono 16kHz con ffmpeg."""
     if not shutil.which("ffmpeg"):
         raise SystemExit(
@@ -37,7 +39,9 @@ def preconvert_to_wav(src: Path) -> Path:
         )
     temp_dir = Path(tempfile.mkdtemp())
     tmp = temp_dir / (src.stem + "_fw16k.wav")
-    cmd = f'ffmpeg -y -i "{src}" -vn -ac 1 -ar 16000 -acodec pcm_s16le "{tmp}"'
+    seek = f"-ss {start} " if start > 0 else ""
+    trim = f"-t {duration} " if duration is not None else ""
+    cmd = f'ffmpeg -y {seek}-i "{src}" {trim}-vn -ac 1 -ar 16000 -acodec pcm_s16le "{tmp}"'
     subprocess.run(shlex.split(cmd), check=True)
     return tmp
 
@@ -57,34 +61,79 @@ def write_json(segments, out_path: Path, lang: str, duration: float):
     out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+# Mapeo de códigos ISO 639-1 a códigos NLLB (flores_200)
+_NLLB_CODES = {
+    "en": "eng_Latn",
+    "es": "spa_Latn",
+    "fr": "fra_Latn",
+    "de": "deu_Latn",
+    "it": "ita_Latn",
+    "pt": "por_Latn",
+    "zh": "zho_Hans",
+    "ja": "jpn_Jpan",
+    "ko": "kor_Hang",
+    "ru": "rus_Cyrl",
+    "ar": "arb_Arab",
+}
+
+_NLLB_MODEL = "facebook/nllb-200-distilled-600M"
+_nllb_translator = None
+_nllb_sp = None
+
+
+def _load_nllb():
+    global _nllb_translator, _nllb_sp
+    if _nllb_translator is not None:
+        return
+    print(f"[INFO] Cargando modelo NLLB (primera vez descarga ~600 MB)...")
+    model_path = snapshot_download(_NLLB_MODEL)
+    _nllb_translator = CT2Translator(model_path, device="cpu", inter_threads=2)
+    sp_model = Path(model_path) / "sentencepiece.bpe.model"
+    _nllb_sp = spm.SentencePieceProcessor()
+    _nllb_sp.Load(str(sp_model))
+
+
+def _nllb_translate(text: str, src_nllb: str, tgt_nllb: str) -> str:
+    tokens = _nllb_sp.Encode(text, out_type=str)
+    tokens = [src_nllb] + tokens
+    result = _nllb_translator.translate_batch(
+        [tokens],
+        target_prefix=[[tgt_nllb]],
+        max_decoding_length=512,
+        beam_size=4,
+    )
+    out_tokens = result[0].hypotheses[0][1:]  # quitar el token de idioma
+    return _nllb_sp.Decode(out_tokens)
+
+
 def translate_segments(segments, src_lang: str, dest_lang: str = "es"):
-    """Traduce el texto de los segmentos a un idioma de destino usando un modelo Helsinki-NLP."""
-    if not TRANSFORMERS_AVAILABLE:
-        print("[ERROR] La librería 'transformers' no está instalada. No se puede traducir.", file=sys.stderr)  # fmt: skip
-        print("        Instálala con: pip install torch sentencepiece 'transformers[sentencepiece]'", file=sys.stderr)
+    """Traduce segmentos usando NLLB-200 vía ctranslate2 (sin torch)."""
+    if not NLLB_AVAILABLE:
+        print("[ERROR] Faltan dependencias para NLLB. Instala con:", file=sys.stderr)
+        print("        pip install huggingface_hub sentencepiece", file=sys.stderr)
+        print("        (ctranslate2 ya viene con faster-whisper)", file=sys.stderr)
         return segments, False
 
     if src_lang == dest_lang:
-        print(f"[INFO] El idioma de origen ('{src_lang}') y el de destino ('{dest_lang}') son el mismo. No se requiere traducción.")
+        print(f"[INFO] Idioma origen ('{src_lang}') == destino ('{dest_lang}'). Sin traducción.")
         return segments, False
 
-    model_name = f"Helsinki-NLP/opus-mt-{src_lang}-{dest_lang}"
-    print(f"[INFO] Cargando modelo de traducción: {model_name}...")
+    src_nllb = _NLLB_CODES.get(src_lang)
+    tgt_nllb = _NLLB_CODES.get(dest_lang)
+    if not src_nllb or not tgt_nllb:
+        print(f"[ERROR] Código de idioma no soportado: '{src_lang}' o '{dest_lang}'.", file=sys.stderr)
+        print(f"        Idiomas soportados: {', '.join(_NLLB_CODES.keys())}", file=sys.stderr)
+        return segments, False
+
     try:
-        translator = pipeline("translation", model=model_name, device=-1)  # device=-1 for CPU
+        _load_nllb()
     except Exception as e:
-        print(f"[ERROR] No se pudo cargar el modelo de traducción para '{src_lang}->{dest_lang}'. Razón: {e}", file=sys.stderr)
-        print(f"         Asegúrate de que el modelo '{model_name}' existe en Hugging Face.", file=sys.stderr)
+        print(f"[ERROR] No se pudo cargar el modelo NLLB: {e}", file=sys.stderr)
         return segments, False
 
-    # Crear una copia profunda para no modificar los segmentos originales
     segments_copy = [s.copy() for s in segments]
-    texts_to_translate = [s['text'] for s in segments]
-    # Traducir en lotes para mayor eficiencia
-    translated_texts = translator(texts_to_translate, batch_size=16)
-
-    for seg, trans in zip(segments_copy, translated_texts):
-        seg['text'] = trans['translation_text']
+    for seg in segments_copy:
+        seg['text'] = _nllb_translate(seg['text'], src_nllb, tgt_nllb)
     return segments_copy, True
 
 
@@ -104,6 +153,8 @@ def main():
     p.add_argument("--vad", action="store_true", help="VAD interno (mejor segmentación en audio ruidoso)")
     p.add_argument("--progress", type=int, default=10, help="Imprimir progreso cada N segmentos (default: 10)")
     p.add_argument("--translate-to", help="Traducir el texto a un idioma (ej: 'en' para inglés, 'es' para español). Requiere modelos de traducción.")
+    p.add_argument("--start", type=float, default=0.0, help="Segundo de inicio del recorte (default: 0)")
+    p.add_argument("--duration", type=float, default=None, help="Duración en segundos a procesar (default: todo el archivo)")
     args = p.parse_args()
 
     in_path = Path(args.input).expanduser().resolve()
@@ -120,8 +171,9 @@ def main():
 
     try:
         # --- 1. Pre-conversión a WAV ---
-        print(f"[INFO] Convirtiendo '{in_path.name}' a formato WAV para análisis...")
-        temp_audio_path = preconvert_to_wav(in_path)
+        recorte = f" (desde {args.start}s, duración {args.duration}s)" if args.duration else ""
+        print(f"[INFO] Convirtiendo '{in_path.name}' a formato WAV{recorte}...")
+        temp_audio_path = preconvert_to_wav(in_path, start=args.start, duration=args.duration)
     except Exception as e:
         print(f"\n[ERROR] Falló la conversión de audio con ffmpeg: {e}", file=sys.stderr)
         sys.exit(1)

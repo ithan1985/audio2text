@@ -11,6 +11,10 @@ services:
       - ./cache/ctranslate2:/root/.cache/ctranslate2
       - ./cache/huggingface:/root/.cache/huggingface
     working_dir: /app
+    environment:
+      - HF_HUB_DISABLE_PROGRESS_BARS=0
+      - TRANSFORMERS_VERBOSITY=error
+      - HF_HUB_VERBOSITY=error
     # Define el programa principal que se ejecutará siempre.
     # Los argumentos se pasarán desde el comando 'docker compose run'.
     entrypoint: [

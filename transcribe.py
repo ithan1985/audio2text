@@ -41,7 +41,7 @@ def preconvert_to_wav(src: Path, start: float = 0.0, duration: float = None) -> 
     tmp = temp_dir / (src.stem + "_fw16k.wav")
     seek = f"-ss {start} " if start > 0 else ""
     trim = f"-t {duration} " if duration is not None else ""
-    cmd = f'ffmpeg -y {seek}-i "{src}" {trim}-vn -ac 1 -ar 16000 -acodec pcm_s16le "{tmp}"'
+    cmd = f'ffmpeg -y -loglevel error {seek}-i "{src}" {trim}-vn -ac 1 -ar 16000 -acodec pcm_s16le "{tmp}"'
     subprocess.run(shlex.split(cmd), check=True)
     return tmp
 

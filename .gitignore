@@ -12,6 +12,7 @@ __pycache__/
 # editor
 .vscode/
 .idea/
+.claude/
 
 # mac/linux
 .DS_Store
@@ -20,5 +21,3 @@ cache/
 __pycache__/
 *.pyc
 .env
-audios/audio1.m4a
-audios/audio2.m4a

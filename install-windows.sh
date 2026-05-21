@@ -4,17 +4,29 @@ set -e
 
 echo "======================================"
 echo " AUDIO2TEXT INSTALLER"
-echo " Instalacion automatica para estudiantes"
+echo " Instalacion automatica para Ubuntu / WSL"
 echo "======================================"
 
-PROJECT_DIR="$(pwd)"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo ""
 echo "[1/9] Verificando sistema operativo..."
 
 if [[ "$(uname -s)" != "Linux" ]]; then
-  echo "Este instalador esta diseñado para Ubuntu / WSL."
-  echo "En Mac instala Docker Desktop y ejecuta docker compose build manualmente."
+  echo "Este instalador esta disenado para Ubuntu / WSL."
+  echo "En Mac usa install-mac.sh."
+  exit 1
+fi
+
+if [ -f /etc/os-release ]; then
+  . /etc/os-release
+  if [ "${ID:-}" != "ubuntu" ]; then
+    echo "Este instalador usa apt y el repositorio oficial de Docker para Ubuntu."
+    echo "Sistema detectado: ${PRETTY_NAME:-desconocido}"
+    exit 1
+  fi
+else
+  echo "No se pudo detectar /etc/os-release."
   exit 1
 fi
 
@@ -73,9 +85,9 @@ sudo usermod -aG docker "$USER"
 echo ""
 echo "[7/9] Creando carpetas necesarias..."
 
-mkdir -p audios
-mkdir -p outputs
-mkdir -p cache
+mkdir -p "$PROJECT_DIR/audios"
+mkdir -p "$PROJECT_DIR/outputs"
+mkdir -p "$PROJECT_DIR/cache"
 
 echo ""
 echo "[8/9] Creando comando global audio2text..."
@@ -90,6 +102,8 @@ sudo chmod +x /usr/local/bin/audio2text
 
 echo ""
 echo "[9/9] Construyendo contenedor..."
+
+cd "$PROJECT_DIR"
 
 if docker ps >/dev/null 2>&1; then
   docker compose build

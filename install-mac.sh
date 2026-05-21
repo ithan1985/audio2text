@@ -7,7 +7,7 @@ echo " AUDIO2TEXT INSTALLER - MAC"
 echo " Instalacion automatica para estudiantes"
 echo "======================================"
 
-PROJECT_DIR="$(pwd)"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo ""
 echo "[1/7] Verificando macOS..."
@@ -31,16 +31,30 @@ echo ""
 echo "[3/7] Instalando herramientas basicas..."
 
 brew update
-brew install git curl wget zip unzip ffmpeg || true
+brew install git curl wget zip unzip ffmpeg
 
 echo ""
-echo "[4/7] Verificando Docker..."
+echo "[4/7] Instalando Docker Desktop..."
 
 if ! command -v docker >/dev/null 2>&1; then
-  echo "Docker no esta instalado."
-  echo "Instala Docker Desktop para Mac:"
-  echo "https://www.docker.com/products/docker-desktop/"
-  exit 1
+  echo "Docker no encontrado. Instalando via Homebrew..."
+  brew install --cask docker
+  echo ""
+  echo "======================================"
+  echo " ACCION REQUERIDA"
+  echo "======================================"
+  echo ""
+  echo "Docker Desktop fue instalado pero necesitas abrirlo"
+  echo "antes de continuar:"
+  echo ""
+  echo "  1. Abre el Launchpad (el icono de cohete en el Dock)"
+  echo "  2. Busca y abre 'Docker'"
+  echo "  3. Espera hasta ver el icono de ballena en la barra"
+  echo "     superior de tu pantalla"
+  echo "  4. Vuelve a esta ventana y ejecuta de nuevo:"
+  echo "     ./install-mac.sh"
+  echo ""
+  exit 0
 fi
 
 echo "Docker detectado:"
@@ -61,22 +75,33 @@ echo ""
 echo "[6/7] Verificando si Docker esta corriendo..."
 
 if ! docker ps >/dev/null 2>&1; then
+  echo ""
+  echo "======================================"
+  echo " ACCION REQUERIDA"
+  echo "======================================"
+  echo ""
   echo "Docker esta instalado pero no esta corriendo."
-  echo "Abre Docker Desktop y espera a que indique que esta activo."
-  echo "Luego vuelve a ejecutar:"
-  echo "./install_mac.sh"
+  echo ""
+  echo "  1. Abre el Launchpad (el icono de cohete en el Dock)"
+  echo "  2. Busca y abre 'Docker'"
+  echo "  3. Espera hasta ver el icono de ballena en la barra"
+  echo "     superior de tu pantalla"
+  echo "  4. Vuelve a esta ventana y ejecuta de nuevo:"
+  echo "     ./install-mac.sh"
+  echo ""
   exit 1
 fi
 
 echo ""
 echo "[7/7] Preparando proyecto..."
 
-mkdir -p audios
-mkdir -p outputs
-mkdir -p cache
+mkdir -p "$PROJECT_DIR/audios"
+mkdir -p "$PROJECT_DIR/outputs"
+mkdir -p "$PROJECT_DIR/cache"
 
 echo ""
 echo "Construyendo contenedor..."
+cd "$PROJECT_DIR"
 docker compose build
 
 echo ""

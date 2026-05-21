@@ -6,12 +6,10 @@ import json
 import subprocess
 import shutil
 import shlex
-from datetime import timedelta
 from pathlib import Path
 import sys
 import tempfile
 from faster_whisper import WhisperModel
-import torch
 
 try:
     from transformers import pipeline
@@ -118,13 +116,12 @@ def main():
     outdir.mkdir(parents=True, exist_ok=True)    
 
     temp_audio_path = None
-    segments = []
     info = None
 
     try:
         # --- 1. Pre-conversión a WAV ---
         print(f"[INFO] Convirtiendo '{in_path.name}' a formato WAV para análisis...")
-        temp_audio_path = preconvert_to_wav(in_path) # Archivo temporal
+        temp_audio_path = preconvert_to_wav(in_path)
     except Exception as e:
         print(f"\n[ERROR] Falló la conversión de audio con ffmpeg: {e}", file=sys.stderr)
         sys.exit(1)
@@ -161,13 +158,9 @@ def main():
 
     # --- 3. Procesamiento y guardado ---
     output_lang = info.language
-    
-    # Mover el archivo WAV temporal a la carpeta de salida y renombrarlo
-    final_wav_path = outdir / f"{in_path.stem}_{output_lang}_fw16k.wav"
-    shutil.move(str(temp_audio_path), str(final_wav_path))
-    shutil.rmtree(temp_audio_path.parent) # Limpiar directorio temporal
-    print(f"\n✅ Audio convertido -> {output_lang.upper()}")
-    print(f"   - {final_wav_path.relative_to(base_outdir)}")
+
+    shutil.rmtree(temp_audio_path.parent, ignore_errors=True)
+    print(f"\n✅ Audio procesado -> idioma detectado: {output_lang.upper()}")
 
     if not segments:
         print("\n[INFO] No se detectaron segmentos de audio. No se crearán archivos de transcripción.")
@@ -198,15 +191,10 @@ def main():
         if success:
             translated_stem = f"{in_path.stem}_{output_lang}-{dest_lang}"
             
-            # Copiar el archivo WAV para que coincida con los nombres de los archivos traducidos
-            translated_wav_path = outdir / f"{translated_stem}_fw16k.wav"
-            shutil.copy(final_wav_path, translated_wav_path)
-
             write_txt(translated_segments, outdir / (translated_stem + ".txt"))
             write_srt(translated_segments, outdir / (translated_stem + ".srt"))
             write_json(translated_segments, outdir / (translated_stem + ".json"), lang=dest_lang, duration=info.duration)
             print(f"✅ Traducido a {dest_lang.upper()} (desde {output_lang.upper()})")
-            print(f"   - {translated_wav_path.relative_to(base_outdir)}")
             print(f"   - {(outdir / (translated_stem + '.txt')).relative_to(base_outdir)}")
             print(f"   - {(outdir / (translated_stem + '.srt')).relative_to(base_outdir)}")
             print(f"   - {(outdir / (translated_stem + '.json')).relative_to(base_outdir)}")

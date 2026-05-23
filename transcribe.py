@@ -12,12 +12,10 @@ import tempfile
 from faster_whisper import WhisperModel
 
 try:
-    from ctranslate2 import Translator as CT2Translator
-    from huggingface_hub import snapshot_download
-    import sentencepiece as spm
-    NLLB_AVAILABLE = True
+    from transformers import MarianMTModel, MarianTokenizer
+    TRANSFORMERS_AVAILABLE = True
 except ImportError:
-    NLLB_AVAILABLE = False
+    TRANSFORMERS_AVAILABLE = False
 
 
 def ts(seconds: float) -> str:
@@ -61,79 +59,40 @@ def write_json(segments, out_path: Path, lang: str, duration: float):
     out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-# Mapeo de códigos ISO 639-1 a códigos NLLB (flores_200)
-_NLLB_CODES = {
-    "en": "eng_Latn",
-    "es": "spa_Latn",
-    "fr": "fra_Latn",
-    "de": "deu_Latn",
-    "it": "ita_Latn",
-    "pt": "por_Latn",
-    "zh": "zho_Hans",
-    "ja": "jpn_Jpan",
-    "ko": "kor_Hang",
-    "ru": "rus_Cyrl",
-    "ar": "arb_Arab",
-}
-
-_NLLB_MODEL = "facebook/nllb-200-distilled-600M"
-_nllb_translator = None
-_nllb_sp = None
-
-
-def _load_nllb():
-    global _nllb_translator, _nllb_sp
-    if _nllb_translator is not None:
-        return
-    print(f"[INFO] Cargando modelo NLLB (primera vez descarga ~600 MB)...")
-    model_path = snapshot_download(_NLLB_MODEL)
-    _nllb_translator = CT2Translator(model_path, device="cpu", inter_threads=2)
-    sp_model = Path(model_path) / "sentencepiece.bpe.model"
-    _nllb_sp = spm.SentencePieceProcessor()
-    _nllb_sp.Load(str(sp_model))
-
-
-def _nllb_translate(text: str, src_nllb: str, tgt_nllb: str) -> str:
-    tokens = _nllb_sp.Encode(text, out_type=str)
-    tokens = [src_nllb] + tokens
-    result = _nllb_translator.translate_batch(
-        [tokens],
-        target_prefix=[[tgt_nllb]],
-        max_decoding_length=512,
-        beam_size=4,
-    )
-    out_tokens = result[0].hypotheses[0][1:]  # quitar el token de idioma
-    return _nllb_sp.Decode(out_tokens)
-
-
 def translate_segments(segments, src_lang: str, dest_lang: str = "es"):
-    """Traduce segmentos usando NLLB-200 vía ctranslate2 (sin torch)."""
-    if not NLLB_AVAILABLE:
-        print("[ERROR] Faltan dependencias para NLLB. Instala con:", file=sys.stderr)
-        print("        pip install huggingface_hub sentencepiece", file=sys.stderr)
-        print("        (ctranslate2 ya viene con faster-whisper)", file=sys.stderr)
+    """Traduce el texto de los segmentos usando Helsinki-NLP/opus-mt."""
+    if not TRANSFORMERS_AVAILABLE:
+        print("[ERROR] La librería 'transformers' no está instalada. No se puede traducir.", file=sys.stderr)
+        print("        Instálala con: pip install sentencepiece 'transformers[sentencepiece]'", file=sys.stderr)
         return segments, False
 
     if src_lang == dest_lang:
         print(f"[INFO] Idioma origen ('{src_lang}') == destino ('{dest_lang}'). Sin traducción.")
         return segments, False
 
-    src_nllb = _NLLB_CODES.get(src_lang)
-    tgt_nllb = _NLLB_CODES.get(dest_lang)
-    if not src_nllb or not tgt_nllb:
-        print(f"[ERROR] Código de idioma no soportado: '{src_lang}' o '{dest_lang}'.", file=sys.stderr)
-        print(f"        Idiomas soportados: {', '.join(_NLLB_CODES.keys())}", file=sys.stderr)
-        return segments, False
-
+    model_name = f"Helsinki-NLP/opus-mt-{src_lang}-{dest_lang}"
+    print(f"[INFO] Cargando modelo de traducción: {model_name}...")
     try:
-        _load_nllb()
+        tokenizer = MarianTokenizer.from_pretrained(model_name)
+        model = MarianMTModel.from_pretrained(model_name)
     except Exception as e:
-        print(f"[ERROR] No se pudo cargar el modelo NLLB: {e}", file=sys.stderr)
+        print(f"[ERROR] No se pudo cargar el modelo '{model_name}': {e}", file=sys.stderr)
+        print(f"        Verifica que el par de idiomas '{src_lang}->{dest_lang}' exista en Hugging Face.", file=sys.stderr)
         return segments, False
 
     segments_copy = [s.copy() for s in segments]
-    for seg in segments_copy:
-        seg['text'] = _nllb_translate(seg['text'], src_nllb, tgt_nllb)
+    texts = [s['text'] for s in segments]
+
+    batch_size = 16
+    translated_texts = []
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i:i + batch_size]
+        inputs = tokenizer(batch, return_tensors="pt", padding=True, truncation=True, max_length=512)
+        outputs = model.generate(**inputs)
+        translated_texts.extend(tokenizer.batch_decode(outputs, skip_special_tokens=True))
+
+    for seg, translated in zip(segments_copy, translated_texts):
+        seg['text'] = translated
     return segments_copy, True
 
 
@@ -152,7 +111,9 @@ def main():
     p.add_argument("--beam-size", type=int, default=1, help="Beam search size (1 = greedy, más rápido)")
     p.add_argument("--vad", action="store_true", help="VAD interno (mejor segmentación en audio ruidoso)")
     p.add_argument("--progress", type=int, default=10, help="Imprimir progreso cada N segmentos (default: 10)")
-    p.add_argument("--translate-to", help="Traducir el texto a un idioma (ej: 'en' para inglés, 'es' para español). Requiere modelos de traducción.")
+    p.add_argument("--cpu-threads", type=int, default=2, help="Hilos de CPU para el modelo (default: 2)")
+    p.add_argument("--num-workers", type=int, default=2, help="Workers paralelos para transcripción (default: 2)")
+    p.add_argument("--translate-to", help="Traducir el texto a un idioma (ej: 'en' para inglés, 'es' para español).")
     p.add_argument("--start", type=float, default=0.0, help="Segundo de inicio del recorte (default: 0)")
     p.add_argument("--duration", type=float, default=None, help="Duración en segundos a procesar (default: todo el archivo)")
     args = p.parse_args()
@@ -161,16 +122,14 @@ def main():
     if not in_path.exists():
         raise SystemExit(f"No existe el archivo: {in_path}")
 
-    # Crear un subdirectorio de salida con el nombre del archivo de audio
     base_outdir = Path(args.outdir).resolve() if args.outdir else Path("/app/outputs").resolve()
     outdir = base_outdir / in_path.stem
-    outdir.mkdir(parents=True, exist_ok=True)    
+    outdir.mkdir(parents=True, exist_ok=True)
 
     temp_audio_path = None
     info = None
 
     try:
-        # --- 1. Pre-conversión a WAV ---
         recorte = f" (desde {args.start}s, duración {args.duration}s)" if args.duration else ""
         print(f"[INFO] Convirtiendo '{in_path.name}' a formato WAV{recorte}...")
         temp_audio_path = preconvert_to_wav(in_path, start=args.start, duration=args.duration)
@@ -178,17 +137,16 @@ def main():
         print(f"\n[ERROR] Falló la conversión de audio con ffmpeg: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # --- 2. Transcripción ---
     segments = []
     try:
-        model = WhisperModel(args.model, device="cpu", compute_type=args.compute_type)
+        model = WhisperModel(args.model, device="cpu", compute_type=args.compute_type, cpu_threads=args.cpu_threads, num_workers=args.num_workers)
         segments_iter, info = model.transcribe(
             str(temp_audio_path),
             language=None if args.language.strip() == "" else args.language,
             beam_size=args.beam_size,
             vad_filter=args.vad,
             vad_parameters=dict(min_silence_duration_ms=500) if args.vad else None,
-            task="transcribe", # Siempre transcribir primero para obtener el idioma original
+            task="transcribe",
         )
 
         segments = []
@@ -204,28 +162,22 @@ def main():
     except Exception as e:
         print(f"\n[ERROR] Ocurrió un error durante la transcripción: {e}", file=sys.stderr)
         if temp_audio_path and temp_audio_path.exists():
-            shutil.rmtree(temp_audio_path.parent, ignore_errors=True) # Limpiar el directorio temporal
+            shutil.rmtree(temp_audio_path.parent, ignore_errors=True)
         sys.exit(1)
 
-
-    # --- 3. Procesamiento y guardado ---
     output_lang = info.language
-
     shutil.rmtree(temp_audio_path.parent, ignore_errors=True)
     print(f"\n✅ Audio procesado -> idioma detectado: {output_lang.upper()}")
 
     if not segments:
         print("\n[INFO] No se detectaron segmentos de audio. No se crearán archivos de transcripción.")
-        # El archivo WAV se conserva, ya que puede ser útil.
         return
 
-    # Guardar la transcripción original
     stem = f"{in_path.stem}_{output_lang}"
-
     txt_path = outdir / (stem + ".txt")
     srt_path = outdir / (stem + ".srt")
     json_path = outdir / (stem + ".json")
-    
+
     write_txt(segments, txt_path)
     write_srt(segments, srt_path)
     write_json(segments, json_path, lang=output_lang, duration=info.duration)
@@ -235,14 +187,13 @@ def main():
     print(f"   - {srt_path.relative_to(base_outdir)}")
     print(f"   - {json_path.relative_to(base_outdir)}")
 
-    # --- 4. Si se pide, traducir y guardar archivos adicionales ---
     if args.translate_to:
         dest_lang = args.translate_to
         print(f"\n[INFO] Iniciando traducción de '{output_lang}' a '{dest_lang}'...")
         translated_segments, success = translate_segments(segments, src_lang=output_lang, dest_lang=dest_lang)
         if success:
             translated_stem = f"{in_path.stem}_{output_lang}-{dest_lang}"
-            
+
             write_txt(translated_segments, outdir / (translated_stem + ".txt"))
             write_srt(translated_segments, outdir / (translated_stem + ".srt"))
             write_json(translated_segments, outdir / (translated_stem + ".json"), lang=dest_lang, duration=info.duration)

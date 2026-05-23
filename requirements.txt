@@ -1,3 +1,4 @@
 faster-whisper
-huggingface_hub
-sentencepiece
+torch --index-url https://download.pytorch.org/whl/cpu
+transformers[sentencepiece]
+sacremoses

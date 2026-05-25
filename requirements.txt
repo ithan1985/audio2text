@@ -1,4 +1,7 @@
-faster-whisper
-torch --index-url https://download.pytorch.org/whl/cpu
-transformers[sentencepiece]
-sacremoses
+faster-whisper>=0.10.0
+torch>=2.0.0 --index-url https://download.pytorch.org/whl/cpu
+transformers[sentencepiece]>=4.30.0
+sacremoses>=0.0.53
+
+
+

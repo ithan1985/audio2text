@@ -1,6 +1,6 @@
 # audio2text
 
-Herramienta para transcribir y traducir archivos de audio o video a texto, sin conexión a internet y sin costo por uso. Desarrollada como PoC para la asignatura **Gestión del Conocimiento y Transferencia Tecnológica** — Universidad Militar Nueva Granada.
+Herramienta para transcribir y traducir archivos de audio o video a texto de forma local y sin costo por uso. La primera ejecución puede requerir internet para descargar los modelos de IA; después quedan en caché para reutilizarlos. Desarrollada como PoC para la asignatura **Gestión del Conocimiento y Transferencia Tecnológica** — Universidad Militar Nueva Granada.
 
 ---
 
@@ -71,7 +71,10 @@ sudo apt install git -y
 ### Paso 4 — Clonar el repositorio
 
 ```bash
-git clone https://github.com/ithan1985/audio2text.git
+sudo mkdir -p /home/proyectoKM &&
+sudo chown "$USER":"$USER" /home/proyectoKM &&
+cd /home/proyectoKM &&
+git clone https://github.com/ithan1985/audio2text.git &&
 cd audio2text
 ```
 
@@ -106,8 +109,8 @@ Cierra la ventana de Ubuntu completamente y vuelve a abrirla desde el menú Inic
 ### Paso 8 — Probar la instalación
 
 ```bash
-cd audio2text
-docker compose run --rm audio2text "audios/audio1.m4a" -l es --translate-to en -m small --vad
+cd /home/proyectoKM/audio2text &&
+docker compose run --rm audio2text "audios/audio1.mp3" -l es --translate-to en -m small --vad
 ```
 
 La primera vez descargará los modelos de IA (puede tardar unos minutos según tu conexión). Las siguientes veces será mucho más rápido.
@@ -151,6 +154,9 @@ brew install git
 ### Paso 4 — Clonar el repositorio
 
 ```bash
+sudo mkdir -p /home/proyectoKM
+sudo chown "$USER":"$(id -gn)" /home/proyectoKM
+cd /home/proyectoKM
 git clone https://github.com/ithan1985/audio2text.git
 cd audio2text
 ```
@@ -188,7 +194,8 @@ Si Docker Desktop no está instalado, el script lo instalará automáticamente y
 ### Paso 7 — Probar la instalación
 
 ```bash
-docker compose run --rm audio2text "audios/audio1.m4a" -l es --translate-to en -m small --vad
+cd /home/proyectoKM/audio2text
+docker compose run --rm audio2text "audios/audio1.mp3" -l es --translate-to en -m small --vad
 ```
 
 La primera vez descargará los modelos de IA (puede tardar unos minutos). Los resultados quedarán en la carpeta `outputs/`.
@@ -199,9 +206,9 @@ La primera vez descargará los modelos de IA (puede tardar unos minutos). Los re
 
 1. Copia tu archivo de audio (mp3, m4a, mp4, wav, etc.) dentro de la carpeta `audios/`
 
-   - **Windows:** la carpeta se encuentra en `\\wsl$\Ubuntu\home\TU_USUARIO\audio2text\audios\`
+   - **Windows:** la carpeta se encuentra en `\\wsl$\Ubuntu\home\proyectoKM\audio2text\audios\`
      Puedes abrirla desde el Explorador de archivos pegando esa ruta en la barra de direcciones.
-   - **Mac:** la carpeta se encuentra en `~/audio2text/audios/`
+   - **Mac:** la carpeta se encuentra en `/home/proyectoKM/audio2text/audios/`
 
 2. Ejecuta el comando reemplazando `mi_audio.mp3` con el nombre exacto de tu archivo:
 
@@ -254,7 +261,7 @@ audio2text/
 
 **Transcribir audio en español y traducir al inglés:**
 ```bash
-docker compose run --rm audio2text "audios/audio1.m4a" -l es --translate-to en -m small --vad
+docker compose run --rm audio2text "audios/audio1.mp3" -l es --translate-to en -m small --vad
 ```
 
 **Transcribir audio en inglés (sin traducción):**
@@ -302,8 +309,8 @@ docker compose run --rm audio2text "audios/historia.mp3" -l en --start 60 --dura
 - **Asignatura:** Gestión del Conocimiento y Transferencia Tecnológica
 - **Institución:** Universidad Militar Nueva Granada
 - **Motor de transcripción:** [faster-whisper](https://github.com/Systran/faster-whisper)
-- **Traducción:** [NLLB-200](https://huggingface.co/facebook/nllb-200-distilled-600M) de Meta AI vía ctranslate2 (offline, sin torch)
-- **Procesamiento:** 100% local, sin internet durante la transcripción y traducción
+- **Traducción:** [Helsinki-NLP/OPUS-MT](https://huggingface.co/Helsinki-NLP) con MarianMT vía `transformers` y `torch`
+- **Procesamiento:** local. La primera ejecución puede descargar modelos; luego se reutilizan desde la caché local
 
 ---
 

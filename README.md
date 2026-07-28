@@ -94,6 +94,12 @@ chmod +x install-windows.sh
 ./install-windows.sh
 ```
 
+O, si prefieres usar `make`:
+
+```bash
+make win
+```
+
 Este paso instala Docker y todas las dependencias necesarias. Puede tardar varios minutos.
 
 ---
@@ -177,6 +183,12 @@ chmod +x install-mac.sh
 ./install-mac.sh
 ```
 
+O, si prefieres usar `make`:
+
+```bash
+make mac
+```
+
 Si Docker Desktop no está instalado, el script lo instalará automáticamente y te pedirá que lo abras antes de continuar.
 
 **Cuando el script te indique que abras Docker:**
@@ -199,6 +211,38 @@ docker compose run --rm audio2text "audios/audio1.mp3" -l es --translate-to en -
 ```
 
 La primera vez descargará los modelos de IA (puede tardar unos minutos). Los resultados quedarán en la carpeta `outputs/`.
+
+---
+
+## Alternativa en Mac sin Docker
+
+Si en tu Mac no puedes instalar o correr Docker (restricciones corporativas, Mac muy antiguo, etc.), puedes instalar y correr `audio2text` de forma nativa con un entorno virtual de Python, sin contenedores:
+
+```bash
+chmod +x install-mac-native.sh
+./install-mac-native.sh
+```
+
+O con `make`:
+
+```bash
+make mac-native
+```
+
+Esto instala `ffmpeg` y `python3` con Homebrew, crea un entorno virtual en `.venv/` e instala las dependencias de `requirements.txt` ahí. Para transcribir:
+
+```bash
+source .venv/bin/activate
+python3 transcribe.py "audios/audio1.mp3" -l es --translate-to en -m small --vad -o outputs
+```
+
+O en un solo paso:
+
+```bash
+make run-native ARGS="audios/audio1.mp3 -l es --translate-to en -m small --vad"
+```
+
+> A diferencia de la ruta con Docker, aquí **debes indicar `-o outputs`** explícitamente — sin Docker no hay un directorio de salida por defecto. En Apple Silicon esta ruta además corre nativa en arm64 (sin la emulación amd64 que usa la imagen Docker), por lo que puede ser más rápida.
 
 ---
 

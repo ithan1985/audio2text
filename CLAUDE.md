@@ -22,6 +22,10 @@ Reconstruir la imagen explícitamente tras cambios de dependencias:
 docker compose build
 ```
 
+También existe un [Makefile](Makefile) como atajo (pensado para correr dentro de Ubuntu/WSL o macOS, no en PowerShell): `make win` / `make mac` ejecutan los instaladores (`install-windows.sh` / `install-mac.sh`), `make build` corre `docker compose build`, y `make run ARGS='audios/audio1.mp3 -l es --translate-to en -m small --vad'` corre la transcripción.
+
+En Mac existe además una ruta **sin Docker** ([install-mac-native.sh](install-mac-native.sh) / `make mac-native`) que crea un venv en `.venv/` e instala `requirements.txt` directo con el Python del sistema. Esa ruta corre `transcribe.py` fuera de contenedor, así que el default `/app/outputs` de `-o/--outdir` (ver `main()` en [transcribe.py](transcribe.py)) no aplica — hay que pasar `-o outputs` explícitamente, como hace `make run-native`.
+
 Flags clave del CLI de `transcribe.py` (ver el bloque `argparse` para la lista completa):
 
 - `-l/--language` — código de idioma origen (string vacío `""` activa autodetección)

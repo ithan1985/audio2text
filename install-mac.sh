@@ -54,6 +54,9 @@ if ! command -v docker >/dev/null 2>&1; then
   echo "  4. Vuelve a esta ventana y ejecuta de nuevo:"
   echo "     ./install-mac.sh"
   echo ""
+  echo "Si no puedes usar Docker en este Mac, hay una alternativa sin Docker:"
+  echo "  ./install-mac-native.sh   (o: make mac-native)"
+  echo ""
   exit 0
 fi
 
@@ -88,6 +91,9 @@ if ! docker ps >/dev/null 2>&1; then
   echo "     superior de tu pantalla"
   echo "  4. Vuelve a esta ventana y ejecuta de nuevo:"
   echo "     ./install-mac.sh"
+  echo ""
+  echo "Si no puedes usar Docker en este Mac, hay una alternativa sin Docker:"
+  echo "  ./install-mac-native.sh   (o: make mac-native)"
   echo ""
   exit 1
 fi
